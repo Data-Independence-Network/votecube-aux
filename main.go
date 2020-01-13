@@ -69,10 +69,11 @@ type PollKey struct {
 }
 
 type Thread struct {
-	PollId   uint64
-	UserId   uint64
-	CreateEs int64
-	Data     []byte
+	PollId            uint64
+	UserId            uint64
+	CreateEs          int64
+	Data              []byte
+	LastProcessedDate string
 }
 
 func AlterConfig(ctx *fasthttp.RequestCtx) {
@@ -189,12 +190,13 @@ threadLoop:
 			continue
 		}
 
-		poll := Poll{
-			PollId: pollKey.PollId,
-			Data:   buf.Bytes(),
+		thread := Thread{
+			PollId:            pollKey.PollId,
+			Data:              buf.Bytes(),
+			LastProcessedDate: yesterdayStamp,
 		}
 
-		updateThreadCommand := updateThread.BindStruct(poll)
+		updateThreadCommand := updateThread.BindStruct(thread)
 		if err := updateThreadCommand.Exec(); err != nil {
 			log.Print(err)
 
@@ -247,7 +249,7 @@ func main() {
 	stmt, names = qb.Select("opinions").Columns("data", "processed").Where(qb.Eq("poll_id"), qb.Eq("date")).ToCql()
 	getOpinionDataForThread = gocqlx.Query(session.Query(stmt), names)
 
-	stmt, names = qb.Update("threads").Set("data").Where(qb.Eq("poll_id")).ToCql()
+	stmt, names = qb.Update("threads").Set("data", "last_processed_date").Where(qb.Eq("poll_id")).ToCql()
 	updateThread = gocqlx.Query(session.Query(stmt), names)
 
 	stmt, names = qb.Update("opinions").Set("processed").Where(qb.Eq("poll_id"), qb.Eq("date")).ToCql()
