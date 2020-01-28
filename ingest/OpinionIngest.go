@@ -1,9 +1,10 @@
-package main
+package ingest
 
 import (
 	"bitbucket.org/votecube/votecube-go-lib/model/data"
 	"bitbucket.org/votecube/votecube-go-lib/model/scylladb"
 	"bitbucket.org/votecube/votecube-go-lib/utils"
+	"bitbucket.org/votecube/votecube-ui-aux/mod"
 	"encoding/json"
 	"fmt"
 	"github.com/scylladb/gocqlx"
@@ -13,21 +14,21 @@ import (
 )
 
 type OpinionIngest struct {
-	getAddedOpinionIds           *gocqlx.Queryx
-	getOpinionData               *gocqlx.Queryx
-	getRootOpinion               *gocqlx.Queryx
-	getUpdatedOpinionIds         *gocqlx.Queryx
-	maxParallelQueriesPerType    int
-	updateOpinion                *gocqlx.Queryx
-	updateOpinionUpdate          *gocqlx.Queryx
-	updateOpinionUpdatePartition *gocqlx.Queryx
-	updateRootOpinion            *gocqlx.Queryx
-	waitGroup                    sync.WaitGroup
+	GetAddedOpinionIds           *gocqlx.Queryx
+	GetOpinionData               *gocqlx.Queryx
+	GetRootOpinion               *gocqlx.Queryx
+	GetUpdatedOpinionIds         *gocqlx.Queryx
+	MaxParallelQueriesPerType    int
+	UpdateOpinion                *gocqlx.Queryx
+	UpdateOpinionUpdate          *gocqlx.Queryx
+	UpdateOpinionUpdatePartition *gocqlx.Queryx
+	UpdateRootOpinion            *gocqlx.Queryx
+	WaitGroup                    sync.WaitGroup
 }
 
 func (cur *OpinionIngest) Process(
 	partitionPeriod int32,
-	rootOpinionId RootOpinionId,
+	rootOpinionId mod.RootOpinionId,
 ) bool {
 	opinionIdsToUpdate, opinionIdsToAdd, ok := cur.getOpinionIdsToAddAndUpdate(
 		partitionPeriod, rootOpinionId)
@@ -36,61 +37,61 @@ func (cur *OpinionIngest) Process(
 	}
 
 	opinionsToAddBuckets, idBucketsToAdd := getIdAndOpinionBuckets(
-		opinionIdsToAdd, cur.maxParallelQueriesPerType)
+		opinionIdsToAdd, cur.MaxParallelQueriesPerType)
 	opinionsToAddBuckets, idBucketsToUpdate := getIdAndOpinionBuckets(
-		opinionIdsToUpdate, cur.maxParallelQueriesPerType)
-	cur.waitGroup.Add(len(idBucketsToAdd) + len(idBucketsToUpdate))
+		opinionIdsToUpdate, cur.MaxParallelQueriesPerType)
+	cur.WaitGroup.Add(len(idBucketsToAdd) + len(idBucketsToUpdate))
 	numLoadedAdditions := runDataQueries(
-		idBucketsToAdd, opinionsToAddBuckets, cur.waitGroup, cur.getOpinionData,
+		idBucketsToAdd, opinionsToAddBuckets, cur.WaitGroup, cur.GetOpinionData,
 		"Error looking up added opinion data for opinion_id: %d\n",
 	)
 	numLoadedUpdates := runDataQueries(
-		idBucketsToUpdate, opinionsToAddBuckets, cur.waitGroup, cur.getOpinionData,
+		idBucketsToUpdate, opinionsToAddBuckets, cur.WaitGroup, cur.GetOpinionData,
 		"Error looking up updated opinion data for opinion_id: %d\n",
 	)
-	cur.waitGroup.Wait()
+	cur.WaitGroup.Wait()
 
 	addedOpinions := consolidateData(opinionsToAddBuckets, numLoadedAdditions)
 	updatedOpinions := consolidateData(opinionsToAddBuckets, numLoadedUpdates)
 	addedOpinionIds, updatedOpinionIds, ok := cur.doUpdateRootOpinion(
-		addedOpinions, updatedOpinions, rootOpinionId.opinionId,
-		partitionPeriod, rootOpinionId.pollId)
+		addedOpinions, updatedOpinions, rootOpinionId.OpinionId,
+		partitionPeriod, rootOpinionId.PollId)
 	if !ok {
 		return false
 	}
 
 	allUpdatesRecorded := len(opinionIdsToUpdate) == len(updatedOpinionIds)
 
-	addedIdBuckets := getIdBuckets(addedOpinionIds, cur.maxParallelQueriesPerType)
+	addedIdBuckets := getIdBuckets(addedOpinionIds, cur.MaxParallelQueriesPerType)
 	numFlagUpdateJobs := len(addedIdBuckets) + 1
 
 	var updatedIdBuckets [][]int64
 	if !allUpdatesRecorded {
-		updatedIdBuckets = getIdBuckets(updatedOpinionIds, cur.maxParallelQueriesPerType)
+		updatedIdBuckets = getIdBuckets(updatedOpinionIds, cur.MaxParallelQueriesPerType)
 		numFlagUpdateJobs = len(addedIdBuckets) + len(updatedIdBuckets)
 	}
 
-	cur.waitGroup.Add(numFlagUpdateJobs)
-	setOpinionsFlags(addedIdBuckets, cur.waitGroup, cur.updateOpinion)
+	cur.WaitGroup.Add(numFlagUpdateJobs)
+	setOpinionsFlags(addedIdBuckets, cur.WaitGroup, cur.UpdateOpinion)
 	if allUpdatesRecorded {
 		setAllOpinionUpdateFlagsInPartition(
-			partitionPeriod, rootOpinionId.opinionId,
-			cur.waitGroup, cur.updateOpinionUpdatePartition,
+			partitionPeriod, rootOpinionId.OpinionId,
+			cur.WaitGroup, cur.UpdateOpinionUpdatePartition,
 		)
 	} else {
 		setAllOpinionUpdateFlags(
-			partitionPeriod, rootOpinionId.opinionId, updatedIdBuckets,
-			cur.waitGroup, cur.updateOpinionUpdate,
+			partitionPeriod, rootOpinionId.OpinionId, updatedIdBuckets,
+			cur.WaitGroup, cur.UpdateOpinionUpdate,
 		)
 	}
-	cur.waitGroup.Wait()
+	cur.WaitGroup.Wait()
 
 	return true
 }
 
 func (cur *OpinionIngest) getOpinionIdsToAddAndUpdate(
 	partitionPeriod int32,
-	rootOpinionId RootOpinionId,
+	rootOpinionId mod.RootOpinionId,
 ) ([]int64, []int64, bool) {
 
 	var (
@@ -100,36 +101,36 @@ func (cur *OpinionIngest) getOpinionIdsToAddAndUpdate(
 		updatedOpinionIdsError error
 		numTasks               int
 	)
-	if rootOpinionId.hasNew {
+	if rootOpinionId.HasNew {
 		numTasks = numTasks + 1
 	}
-	if rootOpinionId.hasUpdated {
+	if rootOpinionId.HasUpdated {
 		numTasks = numTasks + 1
 	}
-	cur.waitGroup.Add(numTasks)
-	if rootOpinionId.hasNew {
+	cur.WaitGroup.Add(numTasks)
+	if rootOpinionId.HasNew {
 		go func() {
-			defer cur.waitGroup.Done()
+			defer cur.WaitGroup.Done()
 
-			getAddedOpinionIdsQuery := getAddedOpinionIds.BindMap(qb.M{
+			getAddedOpinionIdsQuery := cur.GetAddedOpinionIds.BindMap(qb.M{
 				"partition_period": partitionPeriod,
 				"root_opinion_id":  rootOpinionId,
 			})
 			addedOpinionIdsError = getAddedOpinionIdsQuery.Select(addedOpinionIds)
 		}()
 	}
-	if rootOpinionId.hasUpdated {
+	if rootOpinionId.HasUpdated {
 		go func() {
-			defer cur.waitGroup.Done()
+			defer cur.WaitGroup.Done()
 
-			getAddedOpinionIdsQuery := getAddedOpinionIds.BindMap(qb.M{
+			getAddedOpinionIdsQuery := cur.GetUpdatedOpinionIds.BindMap(qb.M{
 				"partition_period": partitionPeriod,
 				"root_opinion_id":  rootOpinionId,
 			})
 			updatedOpinionIdsError = getAddedOpinionIdsQuery.Select(updatedOpinionIds)
 		}()
 	}
-	cur.waitGroup.Wait()
+	cur.WaitGroup.Wait()
 
 	if addedOpinionIdsError != nil {
 		log.Println("Error looking up new opinion ids.")
@@ -341,7 +342,7 @@ func (cur *OpinionIngest) doUpdateRootOpinion(
 	partitionPeriod int32,
 	pollId int64,
 ) ([]int64, []int64, bool) {
-	getRootOpinionQuery := cur.getRootOpinion.BindMap(qb.M{
+	getRootOpinionQuery := cur.GetRootOpinion.BindMap(qb.M{
 		"opinion_id": rootOpinionId,
 	})
 
@@ -426,7 +427,7 @@ func (cur *OpinionIngest) doUpdateRootOpinion(
 	rootOpinion.PollId = pollId
 	rootOpinion.Version = partitionPeriod
 	rootOpinion.Data = compressedRootOpinionData.Bytes()
-	updateRootOpinionQuery := updateRootOpinion.BindMap(qb.M{
+	updateRootOpinionQuery := cur.UpdateRootOpinion.BindMap(qb.M{
 		"opinion_id": rootOpinionId,
 	})
 	if !utils.ExecAux(

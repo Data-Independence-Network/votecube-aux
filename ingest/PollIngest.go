@@ -1,4 +1,4 @@
-package main
+package ingest
 
 import (
 	"bitbucket.org/votecube/votecube-go-lib/model/scylladb"
@@ -9,24 +9,24 @@ import (
 )
 
 type PollIngest struct {
-	getPollData          *gocqlx.Queryx
-	maxParallelProcesses int
-	partitionPeriod      int32
-	updatePoll           *gocqlx.Queryx
-	waitGroup            sync.WaitGroup
+	GetPollData          *gocqlx.Queryx
+	MaxParallelProcesses int
+	PartitionPeriod      int32
+	UpdatePoll           *gocqlx.Queryx
+	WaitGroup            sync.WaitGroup
 }
 
 func (cur *PollIngest) Process(
 	pollIds []int64,
 ) bool {
-	pollIdBuckets := getIdBuckets(pollIds, cur.maxParallelProcesses)
+	pollIdBuckets := getIdBuckets(pollIds, cur.MaxParallelProcesses)
 
-	cur.waitGroup.Add(len(pollIdBuckets))
+	cur.WaitGroup.Add(len(pollIdBuckets))
 	for _, idBucket := range pollIdBuckets {
 		go func() {
-			defer cur.waitGroup.Done()
+			defer cur.WaitGroup.Done()
 			for _, pollId := range idBucket {
-				getPollDataQuery := cur.getPollData.BindMap(qb.M{
+				getPollDataQuery := cur.GetPollData.BindMap(qb.M{
 					"poll_id": pollId,
 				})
 				poll := scylladb.Poll{}
@@ -39,7 +39,7 @@ func (cur *PollIngest) Process(
 
 				// TODO: process poll
 
-				updatePollQuery := cur.updatePoll.BindMap(qb.M{
+				updatePollQuery := cur.UpdatePoll.BindMap(qb.M{
 					"poll_id": pollId,
 				})
 				poll.InsertProcessed = true
@@ -52,7 +52,7 @@ func (cur *PollIngest) Process(
 			}
 		}()
 	}
-	cur.waitGroup.Wait()
+	cur.WaitGroup.Wait()
 
 	return false
 }

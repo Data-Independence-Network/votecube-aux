@@ -1,4 +1,4 @@
-package main
+package ingest
 
 func getIdBuckets(
 	ids []int64,

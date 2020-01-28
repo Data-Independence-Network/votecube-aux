@@ -1,4 +1,4 @@
-package main
+package mod
 
 import (
 	"github.com/scylladb/gocqlx"
@@ -7,14 +7,14 @@ import (
 )
 
 type PollIdMod struct {
-	getPollIds      *gocqlx.Queryx
-	modValue        int16
-	modFactor       int16
-	partitionPeriod int32
+	GetPollIds      *gocqlx.Queryx
+	ModValue        int16
+	ModFactor       int16
+	PartitionPeriod int32
 }
 
 func (cur *PollIdMod) Next() []int64 {
-	if cur.modValue == cur.modFactor {
+	if cur.ModValue == cur.ModFactor {
 		return nil
 	}
 
@@ -23,9 +23,9 @@ func (cur *PollIdMod) Next() []int64 {
 		pollIds         []int64
 	)
 
-	getPollIdsQuery := cur.getPollIds.BindMap(qb.M{
-		"partition_period": cur.partitionPeriod,
-		"poll_id_mod":      cur.modValue,
+	getPollIdsQuery := cur.GetPollIds.BindMap(qb.M{
+		"partition_period": cur.PartitionPeriod,
+		"poll_id_mod":      cur.ModValue,
 	})
 
 	getPollIdsError = getPollIdsQuery.Select(pollIds)
@@ -35,7 +35,7 @@ func (cur *PollIdMod) Next() []int64 {
 		log.Print(getPollIdsError)
 		return nil
 	}
-	cur.modValue += 1
+	cur.ModValue += 1
 
 	return pollIds
 }

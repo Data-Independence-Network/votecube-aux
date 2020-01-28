@@ -2,6 +2,8 @@ package main
 
 import (
 	"bitbucket.org/votecube/votecube-go-lib/utils"
+	"bitbucket.org/votecube/votecube-ui-aux/ingest"
+	"bitbucket.org/votecube/votecube-ui-aux/mod"
 	"flag"
 	"fmt"
 	"github.com/fasthttp/router"
@@ -203,12 +205,12 @@ func everyPartitionPeriod() {
 	currentPeriod, previousPeriod = utils.GetCurrentAndPreviousParitionPeriods(5)
 	fmt.Printf("Current period: %d, Previous period: %d\n", currentPeriod, previousPeriod)
 
-	rootOpinionIdMod := RootOpinionIdMod{
-		getAddedToRootOpinionIds: getAddedToRootOpinionIds,
-		getUpdatedRootOpinionIds: getUpdatedRootOpinionIds,
-		modValue:                 0,
-		modFactor:                rootOpinionIdModFactor,
-		partitionPeriod:          previousPeriod,
+	rootOpinionIdMod := mod.RootOpinionIdMod{
+		GetAddedToRootOpinionIds: getAddedToRootOpinionIds,
+		GetUpdatedRootOpinionIds: getUpdatedRootOpinionIds,
+		ModValue:                 0,
+		ModFactor:                rootOpinionIdModFactor,
+		PartitionPeriod:          previousPeriod,
 	}
 	for {
 		rootOpinionIds := rootOpinionIdMod.Next()
@@ -217,27 +219,27 @@ func everyPartitionPeriod() {
 		}
 
 		for _, rootOpinionId := range rootOpinionIds {
-			opinionIngest := OpinionIngest{
-				getAddedOpinionIds:           getAddedOpinionIds,
-				getOpinionData:               getOpinionData,
-				getRootOpinion:               getRootOpinion,
-				getUpdatedOpinionIds:         getUpdatedOpinionIds,
-				maxParallelQueriesPerType:    2,
-				updateOpinion:                updateOpinion,
-				updateOpinionUpdate:          updateOpinionUpdate,
-				updateOpinionUpdatePartition: updateOpinionUpdatePartition,
-				updateRootOpinion:            updateRootOpinion,
-				waitGroup:                    sync.WaitGroup{},
+			opinionIngest := ingest.OpinionIngest{
+				GetAddedOpinionIds:           getAddedOpinionIds,
+				GetOpinionData:               getOpinionData,
+				GetRootOpinion:               getRootOpinion,
+				GetUpdatedOpinionIds:         getUpdatedOpinionIds,
+				MaxParallelQueriesPerType:    2,
+				UpdateOpinion:                updateOpinion,
+				UpdateOpinionUpdate:          updateOpinionUpdate,
+				UpdateOpinionUpdatePartition: updateOpinionUpdatePartition,
+				UpdateRootOpinion:            updateRootOpinion,
+				WaitGroup:                    sync.WaitGroup{},
 			}
 			opinionIngest.Process(previousPeriod, rootOpinionId)
 		}
 	}
 
-	pollIdMod := PollIdMod{
-		getPollIds:      getPollIds,
-		modValue:        0,
-		modFactor:       pollIdModFactor,
-		partitionPeriod: previousPeriod,
+	pollIdMod := mod.PollIdMod{
+		GetPollIds:      getPollIds,
+		ModValue:        0,
+		ModFactor:       pollIdModFactor,
+		PartitionPeriod: previousPeriod,
 	}
 	for {
 		pollIds := pollIdMod.Next()
@@ -245,12 +247,12 @@ func everyPartitionPeriod() {
 			break
 		}
 
-		pollIngest := PollIngest{
-			getPollData:          getPollData,
-			maxParallelProcesses: 2,
-			partitionPeriod:      previousPeriod,
-			updatePoll:           updatePoll,
-			waitGroup:            sync.WaitGroup{},
+		pollIngest := ingest.PollIngest{
+			GetPollData:          getPollData,
+			MaxParallelProcesses: 2,
+			PartitionPeriod:      previousPeriod,
+			UpdatePoll:           updatePoll,
+			WaitGroup:            sync.WaitGroup{},
 		}
 
 		pollIngest.Process(pollIds)

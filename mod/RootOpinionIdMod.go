@@ -1,4 +1,4 @@
-package main
+package mod
 
 import (
 	"github.com/scylladb/gocqlx"
@@ -8,19 +8,19 @@ import (
 )
 
 type RootOpinionId struct {
-	hasNew     bool
-	hasUpdated bool
-	opinionId  int64
-	pollId     int64
+	HasNew     bool
+	HasUpdated bool
+	OpinionId  int64
+	PollId     int64
 }
 
 type RootOpinionIdMod struct {
-	getAddedToRootOpinionIds *gocqlx.Queryx
-	getUpdatedRootOpinionIds *gocqlx.Queryx
-	modValue                 int16
-	modFactor                int16
-	partitionPeriod          int32
-	waitGroup                sync.WaitGroup
+	GetAddedToRootOpinionIds *gocqlx.Queryx
+	GetUpdatedRootOpinionIds *gocqlx.Queryx
+	ModValue                 int16
+	ModFactor                int16
+	PartitionPeriod          int32
+	WaitGroup                sync.WaitGroup
 }
 
 type PeriodAddedToRootOpinionId struct {
@@ -38,7 +38,7 @@ type PeriodUpdatedRootOpinionId struct {
 }
 
 func (cur *RootOpinionIdMod) Next() []RootOpinionId {
-	if cur.modValue == cur.modFactor {
+	if cur.ModValue == cur.ModFactor {
 		return nil
 	}
 
@@ -49,26 +49,26 @@ func (cur *RootOpinionIdMod) Next() []RootOpinionId {
 		updatedOpinionsQueryError error
 	)
 
-	cur.waitGroup.Add(2)
+	cur.WaitGroup.Add(2)
 	go func() {
-		defer cur.waitGroup.Done()
-		boundQuery := cur.getAddedToRootOpinionIds.BindMap(qb.M{
-			"partition_period":    cur.partitionPeriod,
-			"root_opinion_id_mod": cur.modValue,
+		defer cur.WaitGroup.Done()
+		boundQuery := cur.GetAddedToRootOpinionIds.BindMap(qb.M{
+			"partition_period":    cur.PartitionPeriod,
+			"root_opinion_id_mod": cur.ModValue,
 		})
 
 		newOpinionsQueryError = boundQuery.Select(rootIdsForAddedOpinions)
 	}()
 	go func() {
-		defer cur.waitGroup.Done()
-		boundQuery := cur.getUpdatedRootOpinionIds.BindMap(qb.M{
-			"partition_period":    cur.partitionPeriod,
-			"root_opinion_id_mod": cur.modValue,
+		defer cur.WaitGroup.Done()
+		boundQuery := cur.GetUpdatedRootOpinionIds.BindMap(qb.M{
+			"partition_period":    cur.PartitionPeriod,
+			"root_opinion_id_mod": cur.ModValue,
 		})
 
 		updatedOpinionsQueryError = boundQuery.Select(rootIdsForUpdatedOpinions)
 	}()
-	cur.waitGroup.Wait()
+	cur.WaitGroup.Wait()
 
 	if newOpinionsQueryError != nil {
 		log.Println("Error looking up new opinion root_opinion_ids by mod.")
@@ -80,26 +80,26 @@ func (cur *RootOpinionIdMod) Next() []RootOpinionId {
 		log.Print(updatedOpinionsQueryError)
 		return nil
 	}
-	cur.modValue += 1
+	cur.ModValue += 1
 
 	idsMap := make(map[int64]RootOpinionId)
 	for _, rootId := range rootIdsForAddedOpinions {
 		rootOpinionId := RootOpinionId{
-			hasNew:    true,
-			opinionId: rootId.rootOpinionId,
-			pollId:    rootId.pollId,
+			HasNew:    true,
+			OpinionId: rootId.rootOpinionId,
+			PollId:    rootId.pollId,
 		}
 		idsMap[rootId.rootOpinionId] = rootOpinionId
 	}
 	for _, rootId := range rootIdsForUpdatedOpinions {
 		newId, exists := idsMap[rootId.rootOpinionId]
 		if exists {
-			newId.hasUpdated = true
+			newId.HasUpdated = true
 		} else {
 			rootOpinionId := RootOpinionId{
-				hasUpdated: true,
-				opinionId:  rootId.rootOpinionId,
-				pollId:     rootId.pollId,
+				HasUpdated: true,
+				OpinionId:  rootId.rootOpinionId,
+				PollId:     rootId.pollId,
 			}
 			idsMap[rootId.rootOpinionId] = rootOpinionId
 		}
