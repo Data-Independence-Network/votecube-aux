@@ -24,17 +24,17 @@ type RootOpinionIdMod struct {
 }
 
 type PeriodAddedToRootOpinionId struct {
-	partitionPeriod  int32
-	pollId           int64
-	rootOpinionId    int64
-	rootOpinionIdMod int16
+	PartitionPeriod  int32
+	PollId           int64
+	RootOpinionId    int64
+	RootOpinionIdMod int16
 }
 
 type PeriodUpdatedRootOpinionId struct {
-	partitionPeriod  int32
-	pollId           int64
-	rootOpinionId    int64
-	rootOpinionIdMod int16
+	PartitionPeriod  int32
+	PollId           int64
+	RootOpinionId    int64
+	RootOpinionIdMod int16
 }
 
 func (cur *RootOpinionIdMod) Next() []RootOpinionId {
@@ -57,7 +57,7 @@ func (cur *RootOpinionIdMod) Next() []RootOpinionId {
 			"root_opinion_id_mod": cur.ModValue,
 		})
 
-		newOpinionsQueryError = boundQuery.Select(rootIdsForAddedOpinions)
+		newOpinionsQueryError = boundQuery.Select(&rootIdsForAddedOpinions)
 	}()
 	go func() {
 		defer cur.WaitGroup.Done()
@@ -66,7 +66,7 @@ func (cur *RootOpinionIdMod) Next() []RootOpinionId {
 			"root_opinion_id_mod": cur.ModValue,
 		})
 
-		updatedOpinionsQueryError = boundQuery.Select(rootIdsForUpdatedOpinions)
+		updatedOpinionsQueryError = boundQuery.Select(&rootIdsForUpdatedOpinions)
 	}()
 	cur.WaitGroup.Wait()
 
@@ -86,22 +86,22 @@ func (cur *RootOpinionIdMod) Next() []RootOpinionId {
 	for _, rootId := range rootIdsForAddedOpinions {
 		rootOpinionId := RootOpinionId{
 			HasNew:    true,
-			OpinionId: rootId.rootOpinionId,
-			PollId:    rootId.pollId,
+			OpinionId: rootId.RootOpinionId,
+			PollId:    rootId.PollId,
 		}
-		idsMap[rootId.rootOpinionId] = rootOpinionId
+		idsMap[rootId.RootOpinionId] = rootOpinionId
 	}
 	for _, rootId := range rootIdsForUpdatedOpinions {
-		newId, exists := idsMap[rootId.rootOpinionId]
+		newId, exists := idsMap[rootId.RootOpinionId]
 		if exists {
 			newId.HasUpdated = true
 		} else {
 			rootOpinionId := RootOpinionId{
 				HasUpdated: true,
-				OpinionId:  rootId.rootOpinionId,
-				PollId:     rootId.pollId,
+				OpinionId:  rootId.RootOpinionId,
+				PollId:     rootId.PollId,
 			}
-			idsMap[rootId.rootOpinionId] = rootOpinionId
+			idsMap[rootId.RootOpinionId] = rootOpinionId
 		}
 	}
 

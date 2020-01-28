@@ -30,7 +30,7 @@ func (cur *PollIngest) Process(
 					"poll_id": pollId,
 				})
 				poll := scylladb.Poll{}
-				if error := getPollDataQuery.Select(poll); error != nil {
+				if error := getPollDataQuery.Select(&poll); error != nil {
 					log.Printf("Error retrieving poll with poll_id: %d\n",
 						pollId)
 					log.Print(error)

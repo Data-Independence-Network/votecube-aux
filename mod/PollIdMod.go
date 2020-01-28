@@ -28,7 +28,7 @@ func (cur *PollIdMod) Next() []int64 {
 		"poll_id_mod":      cur.ModValue,
 	})
 
-	getPollIdsError = getPollIdsQuery.Select(pollIds)
+	getPollIdsError = getPollIdsQuery.Select(&pollIds)
 
 	if getPollIdsError != nil {
 		log.Println("Error looking poll_ids by mod.")

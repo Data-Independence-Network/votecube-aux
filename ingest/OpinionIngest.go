@@ -116,7 +116,7 @@ func (cur *OpinionIngest) getOpinionIdsToAddAndUpdate(
 				"partition_period": partitionPeriod,
 				"root_opinion_id":  rootOpinionId,
 			})
-			addedOpinionIdsError = getAddedOpinionIdsQuery.Select(addedOpinionIds)
+			addedOpinionIdsError = getAddedOpinionIdsQuery.Select(&addedOpinionIds)
 		}()
 	}
 	if rootOpinionId.HasUpdated {
@@ -127,7 +127,7 @@ func (cur *OpinionIngest) getOpinionIdsToAddAndUpdate(
 				"partition_period": partitionPeriod,
 				"root_opinion_id":  rootOpinionId,
 			})
-			updatedOpinionIdsError = getAddedOpinionIdsQuery.Select(updatedOpinionIds)
+			updatedOpinionIdsError = getAddedOpinionIdsQuery.Select(&updatedOpinionIds)
 		}()
 	}
 	cur.WaitGroup.Wait()
@@ -213,7 +213,7 @@ func runDataQueries(
 				})
 
 				opinion := scylladb.Opinion{}
-				if error := getOpinionDataQuery.Select(opinion); error != nil {
+				if error := getOpinionDataQuery.Select(&opinion); error != nil {
 					log.Printf(errorMessage, opinionId)
 					log.Print(error)
 					opinionBuckets[i][j] = nil
@@ -351,7 +351,7 @@ func (cur *OpinionIngest) doUpdateRootOpinion(
 
 	rootOpinion := scylladb.RootOpinion{}
 
-	if error := getRootOpinionQuery.Select(rootOpinion); error != nil {
+	if error := getRootOpinionQuery.Select(&rootOpinion); error != nil {
 		log.Printf("Error retrieving root_opinion with opinion_id: %d\n",
 			rootOpinionId)
 		log.Print(error)
