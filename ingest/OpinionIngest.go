@@ -426,7 +426,12 @@ func (cur *OpinionIngest) doUpdateRootOpinion(
 	rootOpinion.OpinionId = rootOpinionId
 	rootOpinion.PollId = pollId
 	rootOpinion.Version = partitionPeriod
+	if rootOpinion.CreateEs == 0 {
+		log.Print("root_opinion with id: %d, created via ingest.", rootOpinionId)
+		rootOpinion.CreateEs = utils.GetCurrentEs()
+	}
 	rootOpinion.Data = compressedRootOpinionData.Bytes()
+
 	updateRootOpinionQuery := cur.UpdateRootOpinion.BindMap(qb.M{
 		"opinion_id": rootOpinionId,
 	})

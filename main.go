@@ -175,6 +175,7 @@ func main() {
 			"opinion_id",
 			"poll_id",
 			"version",
+			"create_es",
 			"data",
 		).Where(
 		qb.Eq("poll_id"),
